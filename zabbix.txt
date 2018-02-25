@@ -1,0 +1,87 @@
+----------
+Настройка с Mysql
+------------
+
+# wget http://repo.zabbix.com/zabbix/3.4/ubuntu/pool/main/z/zabbix-release/zabbix-release_3.4-1+xenial_all.deb
+# dpkg -i zabbix-release_3.4-1+xenial_all.deb
+# apt-get update
+
+
+# apt-get install zabbix-server-mysql zabbix-frontend-php
+
+#apt-get install php-mysql (иначе бд не будет видно в списке)
+
+настройка БД
+# mysql -uroot -p
+
+create database zabbix character set utf8 collate utf8_bin;
+mysql> CREATE DATABASE zabbix CHARACTER SET utf8;
+grant all privileges on zabbix.* to zabbix@localhost identified by 'password';
+FLUSH PRIVILEGES;
+
+quit;
+
+#cd /usr/share/zabbix-server-mysql (этой директории может не быть)
+#zcat schema.sql.gz  | mysql -u zabbix -p zabbix
+#zcat images.sql.gz  | mysql -u zabbix -p zabbix
+#zcat data.sql.gz  | mysql -u zabbix -p zabbix
+Независимо от того, есть-ли дирекутория выше, выполняем:
+#cd /usr/share/doc/zabbix-server-mysql
+#zcat /usr/share/doc/zabbix-server-mysql/create.sql.gz | mysql -uzabbix -p zabbix
+------------------------
+Настройка postgress
+sudo -u postgres psql
+createdb zabbix
+createuser -SDRP zabbix
+zcat /usr/share/zabbix-server-pgsql/{schema,images,data}.sql.gz | psql -h localhost zabbix zabbix
+------------------------
+#sudo vim /etc/zabbix/zabbix_server.conf
+#DBHost=localhost
+#DBName=zabbix
+#DBUser=zabbix
+#DBPassword=<пароль>
+ListenPort=29807
+Настройка Web-сервиса (apache или nginx)
+
+#apt-get install nginx php-fpm -y
+#sudo vim /etc/nginx/sites-enabled/default
+
+В конфиге указать root /usr/share/zabbix - директория с фронтэдом (или можно скопировать её в /var/www/html) Конфиг приложен отдельным файлом.
+
+service nginx restart
+service zabbix-server restart
+service php7.0-fpm restart
+
+Дальнейшая настройка в браузере
+Шаг-2 Редактирование конфигурации php (/etc/php.ini или /etc/php5/apache2/php.ini или /etc/php/7.0/fpm/php.ini 
+Шаг-3 Если не видно БД Mysql - проверить установку php-mysql
+
+После этого появляется конфигурационный файл в /usr/share/zabbix/conf/zabbix.conf.php (или его туда нужно скопировать из диалога)
+
+________________________Агенты_________________________
+
+Настройка конфигурации агента: /etc/zabbix_agentd.conf
+
+Hostname=kotobank
+Server=IP сервера
+AllowRoot=1
+ServerActive - адрес сервера для активного мониторинга
+ListenPort=29807
+
+
+-----Настройка Iptables на сервере-----
+Отобразить цепочку правил
+#iptables -I INPUT -n --line-number
+Сохранение правила:
+#iptables-save > /etc/iptables.rules
+
+Открыть порт 29807 для интерфейса tun0:
+#iptables -A INPUT -i tun0 -s 10.64.96.2/32 -p tcp --dport 29807 -j ACCEPT
+
+Проверка состояния порта 
+iptables -L INPUT -v -n | grep 29807
+Страрт сервера service zabbix-server start
+Добавление в автозагрузку  update-rc.d zabbix-server enable
+
+Поиск по сервисам - find /etc/systemd/system/ -name 'php*'
+
